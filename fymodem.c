@@ -26,14 +26,14 @@
 #define PACKET_RX_TIMEOUT_SEC   (1)
 #define PACKET_ERROR_MAX_NBR    (5)
 
-#define ABORT1                  (0x41)  // 'A' == 0x41, abort by user
-#define ABORT2                  (0x61)  // 'a' == 0x61, abort by user
+#define ABT1                    (0x41)  // 'A' == 0x41, abort by user
+#define ABT2                    (0x61)  // 'a' == 0x61, abort by user
 #define SOH                     (0x01)  // start of 128-byte data packet
 #define STX                     (0x02)  // start of 1024-byte data packet
-#define EOT                     (0x04)  // end of transmission
-#define ACK                     (0x06)  // acknowledge, receive OK
-#define NAK                     (0x15)  // negative acknowledge, receiver ERROR; retry
-#define CAN                     (0x18)  // two of these in succession aborts transfer
+#define EOT                     (0x04)  // End Of Transmission
+#define ACK                     (0x06)  // ACKnowledge, receive OK
+#define NAK                     (0x15)  // Negative ACKnowledge, receiver ERROR; retry
+#define CAN                     (0x18)  // two CAN in succession will abort transfer
 #define CRC                     (0x43)  // 'C' == 0x43, request 16-bit CRC;
                                         // use in place of first NAK for CRC mode
 
@@ -73,7 +73,7 @@ static uint32_t ym_writeU32(uint32_t val, uint8_t *buf)
     buf[ci++] = '0';
   }
   else {
-    // Maximum number of decimal digits in u32 is 10
+    // Maximum number of decimal digits in uint32_t is 10
     uint8_t s[11];
     int32_t i = sizeof(s)-1;
     s[i] = 0;
@@ -113,7 +113,7 @@ static void ym_readU32(const uint8_t* buf, uint32_t *val)
 //--------------------------------------------------
 /**
   * Receive a packet from sender
-  * @param length
+  * @param rxlen
   *     0: end of transmission
   *    -1: abort by sender
   *    >0: packet length
@@ -130,6 +130,7 @@ static int32_t ym_rx_packet(uint8_t *rxdata,
   
   int32_t c = _getchar(timeout_sec);
   if (c < 0) {
+    // end of stream
     return -1;
   }
 
@@ -143,11 +144,13 @@ static int32_t ym_rx_packet(uint8_t *rxdata,
     rx_packet_size = PACKET_1K_SIZE;
     break;
   case EOT:
+    // ok
     return 0;
   case CAN:
     c = _getchar(timeout_sec);
     if (c == CAN) {
       *rxlen = -1;
+      // ok
       return 0;
     }
   case CRC:
@@ -155,8 +158,8 @@ static int32_t ym_rx_packet(uint8_t *rxdata,
       // could be start condition, first byte
       return 1;
     }
-  case ABORT1:
-  case ABORT2:
+  case ABT1:
+  case ABT2:
     // User try abort, 'A' or 'a' received
     return 1;
   default:
@@ -176,6 +179,7 @@ static int32_t ym_rx_packet(uint8_t *rxdata,
   for (i = 1; i < (rx_packet_size + PACKET_OVERHEAD); i++) {
     c = _getchar(timeout_sec);
     if (c < 0) {
+      // end of stream
       return -1;
     }
     // store data rxed
@@ -187,25 +191,27 @@ static int32_t ym_rx_packet(uint8_t *rxdata,
   uint8_t seq_nbr = (rxdata[PACKET_SEQNO_INDEX] & 0xff);
   uint8_t seq_cmp = ((rxdata[PACKET_SEQNO_COMP_INDEX] ^ 0xff) & 0xff);
   if (seq_nbr != seq_cmp) {
+    // seq nbr error
     return 1;
   }
   
-  // Check CRC match
-  uint16_t check_crc = ym_crc16((const unsigned char *)(rxdata + PACKET_HEADER),
+  // Check CRC16 match
+  uint16_t crc16_val = ym_crc16((const unsigned char *)(rxdata + PACKET_HEADER),
                                 rx_packet_size + PACKET_TRAILER);
-  if (check_crc != 0) {
-    // CRC error
+  if (crc16_val) {
+    // CRC error, non zero
     return 1;
   }
   *rxlen = rx_packet_size;
-
+  // success
   return 0;
 }
 
+//-------------------------------------------------
 /**
  * Receive a file using the ymodem protocol
- * @param  buf Pointer to the first byte
- * @param length Max in length
+ * @param rxdata Pointer to the first byte
+ * @param rxlen  Max in length
  * @return The length of the file received, or 0 on error
  */
 int32_t fymodem_receive(uint8_t *rxdata,
@@ -256,7 +262,7 @@ int32_t fymodem_receive(uint8_t *rxdata,
           return 0;
         }
         case 0: {
-          // EOT - end of transmission
+          // EOT - End Of Transmission
           _putchar(ACK);
           // Should add some sort of sanity check on the number of
           // packets received and the advertised file length.
@@ -264,13 +270,15 @@ int32_t fymodem_receive(uint8_t *rxdata,
           break;
         }
         default: {
-          // normal packet, check seq nbr
-          if ((rx_packet_data[PACKET_SEQNO_INDEX] & 0xff) != (packets_rxed & 0xff)) {
+          // normal packet - check seq nbr
+          uint8_t seq_nbr = rx_packet_data[PACKET_SEQNO_INDEX];
+          if (seq_nbr != (packets_rxed & 0xff)) {
+            // wrong seq number
             _putchar(NAK);
           } else {
             if (packets_rxed == 0) {
               // The spec suggests that the whole data section should
-              // be zeroed, but I don't think all senders do this. If
+              // be zeroed, but some senders might not do this. If
               // we have a NULL filename and the first few digits of
               // the file length are zero, we'll call it empty.
               int32_t i;
@@ -299,11 +307,8 @@ int32_t fymodem_receive(uint8_t *rxdata,
                 ym_readU32(filesize_asc, &filesize);
                 // check file size
                 if (filesize > rxlen) {
-                  _putchar(CAN);
-                  _putchar(CAN);
-                  _sleep(1);
                   ERR("rx buffer too small (0x%08x vs 0x%08x)\n", (int32_t)rxlen, filesize);
-                  return 0;
+                  goto rx_err_handler;
                 }
                 _putchar(ACK);
                 _putchar(crc_nak ? CRC : NAK);
@@ -317,13 +322,10 @@ int32_t fymodem_receive(uint8_t *rxdata,
               }
             } else {
               // This shouldn't happen, but we check anyway in case the
-              // sender lied in its filename packet:
+              // sender sent wrong info in its filename packet
               if (((rxptr + rx_packet_len) - rxdata) > (int32_t)rxlen) {
-                _putchar(CAN);
-                _putchar(CAN);
-                _sleep(1);
                 ERR("rx buffer overflow (exceeded 0x%08x)\n", (int32_t)rxlen);
-                return 0;
+                goto rx_err_handler;
               }
               int32_t i;
               for (i = 0; i < rx_packet_len; i++) {
@@ -339,14 +341,11 @@ int32_t fymodem_receive(uint8_t *rxdata,
         break;
       } // case 0        
       default: {
-        if (packets_rxed != 0) {
+        if (packets_rxed > 0) {
           nbr_errors++;
           if (nbr_errors >= PACKET_ERROR_MAX_NBR) {
-            _putchar(CAN);
-            _putchar(CAN);
-            _sleep(1);
             ERR("rx errors too many: %d - ABORT.\n", nbr_errors);
-            return 0;
+            goto rx_err_handler;
           }
         }
         _putchar(CRC);
@@ -354,24 +353,24 @@ int32_t fymodem_receive(uint8_t *rxdata,
       } // default
       } // switch
       
-      if (file_done) {
-        break;
-      }
-    } while(true);  // receive packets
+      // check end of receive packets
+    } while (! file_done);
     
-    // exit if done
-    if (session_done) {
-      break;
-    }
-    
-  } while(true);  // receive files
+    // check end of receive files
+  } while (! session_done);
   
   // return bytes received
   return filesize;
+
+ rx_err_handler:
+  _putchar(CAN);
+  _putchar(CAN);
+  _sleep(1);
+  return 0;
 }
 
 //------------------------------------
-static void ym_send_packet(uint8_t *data,
+static void ym_send_packet(uint8_t *txdata,
                            int32_t block_nbr)
 {
   int32_t tx_packet_size;
@@ -383,20 +382,23 @@ static void ym_send_packet(uint8_t *data,
     tx_packet_size = PACKET_1K_SIZE;
   }
 
-  uint16_t crc16 = ym_crc16(data, tx_packet_size);
+  uint16_t crc16_val = ym_crc16(txdata, tx_packet_size);
   
   // 128 byte packets use SOH, 1K use STX
   _putchar( (block_nbr == 0) ? SOH : STX );
+  // write seq numbers
   _putchar(block_nbr & 0xFF);
   _putchar(~block_nbr & 0xFF);
   
+  // write txdata
   int32_t i;
   for (i = 0; i < tx_packet_size; i++) {
-    _putchar(data[i]);
+    _putchar(txdata[i]);
   }
 
-  _putchar((crc16 >> 8) & 0xFF);
-  _putchar(crc16 & 0xFF);
+  // write crc16
+  _putchar((crc16_val >> 8) & 0xFF);
+  _putchar(crc16_val & 0xFF);
 }
 
 //-----------------------------------------------
@@ -466,7 +468,7 @@ static void ym_send_data_packets(uint8_t* txdata,
   do {
     _putchar(EOT);
     ch = _getchar(timeout_sec);
-  } while((ch != ACK) && (ch != -1));
+  } while ((ch != ACK) && (ch != -1));
   
   // Send last data packet
   if (ch == ACK) {
@@ -475,7 +477,7 @@ static void ym_send_data_packets(uint8_t* txdata,
       do {
         ym_send_packet0(0, 0);
         ch = _getchar(timeout_sec);
-      } while((ch != ACK) && (ch != -1));
+      } while ((ch != ACK) && (ch != -1));
     }
   }
 }
@@ -495,30 +497,37 @@ int32_t fymodem_send(uint8_t* txdata, size_t txsize, const char* filename)
   } while (ch < 0);
   
   // We require transfer with CRC
-  if (ch == CRC) {
-    bool crc_nak = true;
-    do {
-      ym_send_packet0(filename, txsize);
-      // When the receiving program receives this block and successfully
-      // opened the output file, it shall acknowledge this block with an ACK
-      // character and then proceed with a normal XMODEM file transfer
-      // beginning with a "C" or NAK tranmsitted by the receiver.
-      ch = _getchar(PACKET_RX_TIMEOUT_SEC);
-      if (ch == ACK) {
-        ch = _getchar(PACKET_RX_TIMEOUT_SEC);
-        if (ch == CRC) {
-          ym_send_data_packets(txdata, txsize, PACKET_RX_TIMEOUT_SEC);
-          // success
-          return txsize;
-        }
-      } else if ((ch == CRC) && (crc_nak)) {
-        crc_nak = false;
-        continue;
-      } else if ((ch != NAK) || (crc_nak)) {
-        break;
-      }
-    } while(true);
+  if (ch != CRC) {
+    goto tx_err_handler;
   }
+
+  bool crc_nak = true;
+  bool file_done = false;
+  do {
+    ym_send_packet0(filename, txsize);
+    // When the receiving program receives this block and successfully
+    // opened the output file, it shall acknowledge this block with an ACK
+    // character and then proceed with a normal XMODEM file transfer
+    // beginning with a "C" or NAK tranmsitted by the receiver.
+    ch = _getchar(PACKET_RX_TIMEOUT_SEC);
+    if (ch == ACK) {
+      ch = _getchar(PACKET_RX_TIMEOUT_SEC);
+      if (ch == CRC) {
+        ym_send_data_packets(txdata, txsize, PACKET_RX_TIMEOUT_SEC);
+        // success
+        file_done = true;
+      }
+    } else if ((ch == CRC) && (crc_nak)) {
+      crc_nak = false;
+      continue;
+    } else if ((ch != NAK) || (crc_nak)) {
+      goto tx_err_handler;
+    }
+  } while (! file_done);
+
+  return txsize;
+
+ tx_err_handler:
   _putchar(CAN);
   _putchar(CAN);
   _sleep(1);
