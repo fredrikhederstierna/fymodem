@@ -41,8 +41,8 @@
 /* ------------------------------------------------ */
 
 /* user callbacks, implement these for your target */
-#define __ym_getchar(tmo_ms) printf("%d", tmo_ms)
-#define __ym_putchar(c)     do { printf("%d",c);      } while(0)
+#define __ym_getchar(tmo_ms) printf("%d", (int)tmo_ms)
+#define __ym_putchar(c)     do { printf("%d",(int)c); } while(0)
 #define __ym_sleep_ms(ms)   do { (void)ms;            } while(0)
 #define __ym_flush()        do { ;                    } while(0)
 /* example functions for POSIX/Unix */
@@ -52,7 +52,7 @@
 #define __ym_flush_posix()         flush()
 
 /* error logging function */
-#define YM_ERR(fmt, ...) printf(fmt, __VA_ARGS__)
+#define YM_ERR(fmt, ...) do { printf(fmt, __VA_ARGS__); } while(0)
 
 /* ------------------------------------------------ */
 /* calculate crc16-ccitt very fast
@@ -320,7 +320,7 @@ int32_t fymodem_receive(uint8_t *rxdata,
                 ym_readU32(filesize_asc, &filesize);
                 /* check file size */
                 if (filesize > rxlen) {
-                  YM_ERR("YM: RX buffer too small (0x%08x vs 0x%08x)\n", (int32_t)rxlen, filesize);
+                  YM_ERR("YM: RX buffer too small (0x%08x vs 0x%08x)\n", (unsigned int)rxlen, (unsigned int)filesize);
                   goto rx_err_handler;
                 }
                 __ym_putchar(YM_ACK);
@@ -339,7 +339,7 @@ int32_t fymodem_receive(uint8_t *rxdata,
               /* This shouldn't happen, but we check anyway in case the
                  sender sent wrong info in its filename packet */
               if (((rxptr + rx_packet_len) - rxdata) > (int32_t)rxlen) {
-                YM_ERR("YM: RX buffer overflow (exceeded 0x%08x)\n", (int32_t)rxlen);
+                YM_ERR("YM: RX buffer overflow (exceeded 0x%08x)\n", (unsigned int)rxlen);
                 goto rx_err_handler;
               }
               int32_t i;
@@ -359,7 +359,7 @@ int32_t fymodem_receive(uint8_t *rxdata,
         if (packets_rxed > 0) {
           nbr_errors++;
           if (nbr_errors >= YM_PACKET_ERROR_MAX_NBR) {
-            YM_ERR("YM: RX errors too many: %d - ABORT.\n", nbr_errors);
+            YM_ERR("YM: RX errors too many: %d - ABORT.\n", (unsigned int)nbr_errors);
             goto rx_err_handler;
           }
         }
@@ -559,7 +559,8 @@ int main(void)
   char buf[100];
   char fname[FYMODEM_FILE_NAME_MAX_LENGTH];
   size_t length = sizeof(buf);
-  memset(fname,0,sizeof(fname));
+  uint32_t i = 0;
+  while (i < sizeof(fname)) { fname[i++] = '\0'; }
   sprintf(fname, "%s", "test.txt");
   int32_t r = fymodem_receive((uint8_t *)buf, length, fname);
   int32_t s = fymodem_send((uint8_t *)buf, length, "test.txt");
