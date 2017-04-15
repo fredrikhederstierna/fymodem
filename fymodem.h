@@ -21,17 +21,17 @@
 #include <stdbool.h>
 #include <stdarg.h>
 
-// max length of filename
+/* max length of filename */
 #define FYMODEM_FILE_NAME_MAX_LENGTH  (64)
 
-// receive file over ymodem
+/* receive file over ymodem */
 int32_t fymodem_receive(uint8_t *rxdata,
                         size_t rxsize,
                         char filename[FYMODEM_FILE_NAME_MAX_LENGTH]);
 
-// send file over ymodem
+/* send file over ymodem */
 int32_t fymodem_send(uint8_t *txdata,
                      size_t txsize,
                      const char *filename);
 
-#endif //_FYMODEM_H_
+#endif
