@@ -11,6 +11,22 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  */
 
+/**
+ * Some future improvements and ideas
+ *
+ * Add rx/tx callbacks if eg storing file to external storage,
+ * and full buffer cannot be in memory at the same time.
+ *
+ * Add support for Ymodem-G standard as described in docs for streaming.
+ *
+ * Add suppport for async operation mode if calling system cannot handle
+ * that calls are synchroneus and blocking.
+ *
+ * Add unittest
+ *
+ * Add support for ZModem (which may imply total rewrite).
+ */
+
 #include <fymodem.h>
 
 /* filesize 999999999999999 should be enough... */
@@ -42,8 +58,8 @@
 
 /* user callbacks, implement these for your target */
 #define __ym_getchar(tmo_ms) printf("%d", (int)tmo_ms)
-#define __ym_putchar(c)     do { printf("%d",(int)c); } while(0)
-#define __ym_sleep_ms(ms)   do { (void)ms;            } while(0)
+#define __ym_putchar(c)     do { (void)(c); /* printf("%d",(int)c); */ } while(0)
+#define __ym_sleep_ms(ms)   do { (void)(ms);          } while(0)
 #define __ym_flush()        do { ;                    } while(0)
 /* example functions for POSIX/Unix */
 #define __ym_getchar_posix(tmo_ms) read(tmo_ms/1000)
@@ -166,11 +182,13 @@ static int32_t ym_rx_packet(uint8_t *rxdata,
       /* ok */
       return 0;
     }
+    /* fall-through */
   case YM_CRC:
     if (packets_rxed == 0) {
       /* could be start condition, first byte */
       return 1;
     }
+   /* fall-through */
   case YM_ABT1:
   case YM_ABT2:
     /* User try abort, 'A' or 'a' received */
@@ -280,6 +298,7 @@ int32_t fymodem_receive(uint8_t *rxdata,
           /* TODO: Add some sort of sanity check on the number of
              packets received and the advertised file length. */
           file_done = true;
+          /* TODO: set first_try = false; here to resend C ? */
           break;
         }
         default: {
