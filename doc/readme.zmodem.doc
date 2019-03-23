@@ -1,0 +1,112 @@
+this file was abstracted from the original zmodem.doc after one
+night I decided I had enough of all this marketing hype and wanted
+to know what zmodem was all about without having to wade hip-deep
+through advertising slogans. this text is !(C) MCS 1994
+
+the intended audience of this document are programmers looking for
+a compact reference text on how zmodem works and what you should
+know to be able to implement conforming zmodem send and receive
+software. this is definitely not an 'end user' document and the
+examples and data structures are strongly biased towards the 'C'
+language. (what ? are there other languages ??)
+
+a lot of work went into the preparation of this document; although
+I'm afraid I can't guarantee it's correctness. Jacques Mattheij
+or MCS shall not be liable for any damages whatsoever. this file
+is provided 'as is' for no fee whatsoever. use is at your own risk.
+if these terms are unacceptable to you than delete these files NOW!.
+
+changes relative to zmodem.doc as provided by various sources:
+
+  - removal of all historical information
+  - removal of all plugs relating to omen technology products etc.
+    if something is public domain then leave it at that
+  - removal of all 'poetry' 
+  - removal of all references to xmodem ymodem kermit and so on
+  - removal of all overstrike typesetting tricks which make this
+    file practically uneditable and unviewable
+  - removal of a lot of irrelevant but nice facts about the wheater and
+    some other nice subjects for conversation
+  - removal of all implementation specific details referring to those
+    antiques of telecom 'rz' and 'sz'
+  - manifest constants added in the text.
+  - moved footnotes to the appropriate place in the text
+  - changed number base from octal to hex (welcome to the nineties)
+    admitted it looks less ivory tower but it reads a lot easier
+    for those who started programming after 1959
+
+some recomendations....
+
+a lot has changed since the original zmodem came out. not so much in the 
+protocol as well as in the world around it. I would like to de-advertise 
+several of zmodem's advanced features:
+
+  - command sending.
+    this is the hackers dream come true. a formalized backdoor into any
+    site supporting this file transfer protocol with a relatively easy
+    defeated security mechanism. don't implement it; just refuse it.
+
+  - file translation.
+    the zmodem protocol specification below contains a number of facilities
+    to change a file between one os and the next. THIS IS NOT THE PLACE !
+    a file TRANSFER protocol should do just that and with a minimum of fuss.
+    if you have to start worrying about wheter zmodem just garbled that 4MB
+    zip file of yours just downloaded from the states at $1 a minute you're 
+    ready for some agression. another point may be that the file size will
+    change which may give rise to a lot of bugs in zmodem implementations on
+    the far side of wherever you are downloading to / from. stick to
+    binary. it helps.
+
+  - use CRC32 and not CRC16
+    apart from the obvious (better error detection) the original CRC16 
+    implementation is buggy
+
+  - do not send the serial number in the ZFILE frame. this is not a 
+    very useful function
+
+  - in many places in the orignal zmodem.doc it was suggested that if
+    this or that failed you should step down and attempt a ymodem 
+    transfer. don't do that ! users know pretty good what they want
+    and if they specify a zmodem transfer give them one or give them
+    nothing. don't try to be smart. probably something is wrong and it
+    is better to exit with some informative message than to go ahead
+    with the wrong protocol; apart from keeping your source clean.
+
+  - don't use or implement the run length encoding. it is greatly 
+    hampered by not checking if run length encoding is needed. if
+    you specify that ability you're stuck with it. nowadays with
+    zip 2.0/unzip 5.0 and better there is absolutely no need for a file 
+    transfer protocol to busy itself with compression. for $200
+    you can buy a mnp class 10 modem which does all that and more
+    completely transparently without possibly triggering a host of
+    bugs in a relatively little exercised part of your hosts software.
+
+  - lzw encoding; see run length encoding.
+
+  - don't use the 'ZXSPARSE' option. chances of finding a system that
+    implements it are small and even then 10 : 1 that the file will
+    be sent compressed.
+
+  - don't send the 'rz\r' used in the original documentation.
+    this is a very nasty way of making a public domain protocol
+    dependant on a company. (sorry had to abide by that in the end;
+    some implementations trigger auto downloads on this)
+
+In general; keep it simple ! stick to multiple file binary transfers and
+try to get some speed out of those boxes. time is spent well on optimizing
+and cleaning your source rather than on some obscure seldomely used 
+feature which will clutter your code. 
+
+Whenever I give an example of how not to program in 'C' I refer to the
+rz.c and sz.c sources. In more than one way these are true 'classics'.
+If you intend to implement zmodem don't bother with these dinosaurs
+(to use a popular term); better to write it clean from the start.
+
+
+
+
+
+
+
+
+
