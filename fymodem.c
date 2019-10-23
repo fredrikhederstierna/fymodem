@@ -57,15 +57,16 @@
 /* ------------------------------------------------ */
 
 /* user callbacks, implement these for your target */
-#define __ym_getchar(tmo_ms) printf("%d", (int)tmo_ms)
-#define __ym_putchar(c)     do { (void)(c); /* printf("%d",(int)c); */ } while(0)
-#define __ym_sleep_ms(ms)   do { (void)(ms);          } while(0)
-#define __ym_flush()        do { ;                    } while(0)
+/* user function __ym_getchar() should return -1 in case of timeout */
+#define __ym_getchar(timeout_ms) printf("%d", (int)timeout_ms)
+#define __ym_putchar(c)          do { (void)(c); /* printf("%d",(int)c); */ } while(0)
+#define __ym_sleep_ms(delay_ms)  do { (void)(delay_ms);    } while(0)
+#define __ym_flush()             do { ;                    } while(0)
 /* example functions for POSIX/Unix */
-#define __ym_getchar_posix(tmo_ms) read(tmo_ms/1000)
-#define __ym_putchar_posix(c)      write(c)
-#define __ym_sleep_ms_posix(ms)    sleep(ms/1000)
-#define __ym_flush_posix()         flush()
+#define __ym_getchar_posix(timeout_ms) read(timeout_ms/1000)
+#define __ym_putchar_posix(c)          (void)write(c)
+#define __ym_sleep_ms_posix(delay_ms)  sleep(delay_ms/1000)
+#define __ym_flush_posix()             (void)flush()
 
 /* error logging function */
 #define YM_ERR(fmt, ...) do { printf(fmt, __VA_ARGS__); } while(0)
@@ -265,8 +266,9 @@ int32_t fymodem_receive(uint8_t *rxdata,
   filename[0] = 0;
   
   /* receive files */
-  do {
-    if (!first_try) {
+  do { /* ! session done */
+    if (first_try) {
+      /* initiate transfer */
       __ym_putchar(YM_CRC);
     }
     first_try = false;
@@ -277,7 +279,7 @@ int32_t fymodem_receive(uint8_t *rxdata,
 
     /* set start position of rxing data */
     uint8_t *rxptr = rxdata;
-    do {
+    do { /* ! file_done */
       /* receive packets */
       int32_t res = ym_rx_packet(rx_packet_data,
                                  &rx_packet_len,
@@ -285,6 +287,7 @@ int32_t fymodem_receive(uint8_t *rxdata,
                                  YM_PACKET_RX_TIMEOUT_MS);
       switch (res) {
       case 0: {
+        /* packet received, clear packet error counter */
         nbr_errors = 0;
         switch (rx_packet_len) {
         case -1: {
@@ -298,7 +301,7 @@ int32_t fymodem_receive(uint8_t *rxdata,
           /* TODO: Add some sort of sanity check on the number of
              packets received and the advertised file length. */
           file_done = true;
-          /* TODO: set first_try = false; here to resend C ? */
+          /* TODO: set first_try here to resend C ? */
           break;
         }
         default: {
@@ -375,6 +378,7 @@ int32_t fymodem_receive(uint8_t *rxdata,
         break;
       } /* case 0 */
       default: {
+        /* ym_rx_packet() returned error */
         if (packets_rxed > 0) {
           nbr_errors++;
           if (nbr_errors >= YM_PACKET_ERROR_MAX_NBR) {
