@@ -302,7 +302,7 @@ int32_t fymodem_receive(uint8_t *rxdata,
              packets received and the advertised file length. */
           file_done = true;
           /* TODO: set first_try here to resend C ? */
-		  __ym_putchar(YM_CRC);
+          __ym_putchar(YM_CRC);
           break;
         }
         default: {
@@ -335,7 +335,7 @@ int32_t fymodem_receive(uint8_t *rxdata,
                 file_ptr++;
                 /* read file size */
                 i = 0;
-				while (*file_ptr && (i < YM_FILE_SIZE_LENGTH)) {
+                while (*file_ptr && (i < YM_FILE_SIZE_LENGTH)) {
                   filesize_asc[i++] = *file_ptr++;
                 }
                 filesize_asc[i++] = '\0';
