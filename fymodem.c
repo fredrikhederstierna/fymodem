@@ -301,7 +301,8 @@ int32_t fymodem_receive(uint8_t *rxdata,
           /* TODO: Add some sort of sanity check on the number of
              packets received and the advertised file length. */
           file_done = true;
-          /* TODO: set first_try here to resend C ? */
+          /* resend CRC to re-initiate transfer */
+          __ym_putchar(YM_CRC);
           break;
         }
         default: {
@@ -327,14 +328,18 @@ int32_t fymodem_receive(uint8_t *rxdata,
                 /* read file name */
                 uint8_t *file_ptr = (uint8_t*)(rx_packet_data + YM_PACKET_HEADER);
                 i = 0;
-                while (*file_ptr && (i < FYMODEM_FILE_NAME_MAX_LENGTH)) {
+                while ((*file_ptr != '\0') &&
+                       (i < FYMODEM_FILE_NAME_MAX_LENGTH)) {
                   filename[i++] = *file_ptr++;
                 }
                 filename[i++] = '\0';
+                /* skip null term char */
                 file_ptr++;
                 /* read file size */
                 i = 0;
-                while ((*file_ptr != ' ') && (i < YM_FILE_SIZE_LENGTH)) {
+                while ((*file_ptr != '\0') &&
+                       (*file_ptr != ' ')  &&
+                       (i < YM_FILE_SIZE_LENGTH)) {
                   filesize_asc[i++] = *file_ptr++;
                 }
                 filesize_asc[i++] = '\0';
@@ -527,6 +532,7 @@ int32_t fymodem_send(uint8_t* txdata, size_t txsize, const char* filename)
   /* flush the RX FIFO, after a cool off delay */
   __ym_sleep_ms(1000);
   __ym_flush();
+  (void)__ym_getchar(1000);
 
   /* not in the specs, send CRC here just for balance */
   int32_t ch;
